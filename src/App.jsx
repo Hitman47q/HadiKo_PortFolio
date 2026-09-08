@@ -134,7 +134,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_URL}/projects`)
+    fetch(`${API_URL}/projects/public`)
       .then(res => res.json())
       .then(data => setProjects(data))
       .catch(err => console.error('Failed to load projects:', err))
