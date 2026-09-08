@@ -3,7 +3,7 @@ import './App.css'
 
 const API_URL = window.location.hostname === 'localhost'
   ? 'http://portfolio-database.test/api'
-  : '/api'
+  : 'https://portfolio-api.YOUR_SUBDOMAIN.workers.dev/api'
 
 function App() {
   const [projects, setProjects] = useState([])
