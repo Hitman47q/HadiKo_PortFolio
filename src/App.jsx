@@ -360,10 +360,10 @@ function App() {
           <p className="contact-note">Available All The Time, Just Let Me Know What You Need.</p>
           <div className="socials">
             <a target="_blank" href="https://wa.me/+963998548611">Whatsapp</a>
-            <a target="_blank" href="https://www.instagram.com/hadi_korish?stkn=ejlvbDN6ZzBwYTdv&utm_source=qr">Instagram</a>
+            <a target="_blank" href="https://www.instagram.com/hadik.motion?stkn=MTNqdHoxZDVxY2huZA%3D%3D&utm_source=qr">Instagram</a>
             <a target="_blank" href="https://www.linkedin.com/in/hadi-korish-838a75430">LinkedIn</a>
             <a target="_blank" href="https://github.com/Hitman47q">GitHub</a>
-            <a target="_blank" href="https://facebook.com/hadi.korish">Facebook</a>
+            {/* <a target="_blank" href="https://facebook.com/hadi.korish">Facebook</a> */}
           </div>
         </div>
         <div className="container foot">

@@ -1,4 +1,67 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
-  <rect width="48" height="48" rx="12" fill="#f59e0b"/>
-  <text x="24" y="32" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="22" fill="#1f2937">HK</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="150" y1="90" x2="880" y2="930" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111827"/>
+      <stop offset="1" stop-color="#05070D"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="220" y1="210" x2="810" y2="790" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7C5CFF"/>
+      <stop offset="0.5" stop-color="#20D9FF"/>
+      <stop offset="1" stop-color="#6B7CFF"/>
+    </linearGradient>
+    <linearGradient id="accent2" x1="260" y1="760" x2="760" y2="250" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#20D9FF"/>
+      <stop offset="1" stop-color="#9B6CFF"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="22" stdDeviation="28" flood-color="#000000" flood-opacity=".42"/>
+    </filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="round"><rect x="32" y="32" width="960" height="960" rx="214"/></clipPath>
+  </defs>
+
+  <!-- Premium dark base -->
+  <rect x="32" y="32" width="960" height="960" rx="214" fill="url(#bg)"/>
+  <rect x="32" y="32" width="960" height="960" rx="214" stroke="#20283A" stroke-width="8"/>
+
+  <!-- Subtle cinematic grid / frame marks -->
+  <g opacity=".16" stroke="#8EA0C8" stroke-width="4">
+    <path d="M170 250H854M170 774H854"/>
+    <path d="M250 170V854M774 170V854"/>
+  </g>
+  <g opacity=".45" stroke="url(#accent)" stroke-width="10" stroke-linecap="round">
+    <path d="M150 228h72M150 228v72"/>
+    <path d="M874 796h-72M874 796v-72"/>
+  </g>
+
+  <!-- Outer monogram frame, inspired by editing/crop geometry -->
+  <g filter="url(#shadow)">
+    <path d="M264 284H390L514 408L638 284H760V406L636 530L760 654V776H638L514 652L390 776H264V654L388 530L264 406V284Z"
+          fill="#0A0E18" stroke="url(#accent)" stroke-width="18" stroke-linejoin="round"/>
+  </g>
+
+  <!-- HK monogram: deliberately geometric and readable at avatar size -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- H -->
+    <path d="M352 374V686M352 530H486M486 374V686" stroke="#F4F7FF" stroke-width="54"/>
+    <!-- K -->
+    <path d="M548 374V686M548 532L690 382M548 532L700 686" stroke="url(#accent2)" stroke-width="54"/>
+  </g>
+
+  <!-- Central edit/play cue -->
+  <path d="M496 475L578 530L496 585V475Z" fill="#FFFFFF" opacity=".96"/>
+  <path d="M496 475L578 530L496 585" stroke="#20D9FF" stroke-width="5" stroke-linejoin="round"/>
+
+  <!-- Timeline ticks -->
+  <g stroke="#FFFFFF" stroke-linecap="round" opacity=".55">
+    <path d="M270 824H754" stroke-width="6"/>
+    <path d="M300 814V834M348 818V830M396 814V834M444 818V830M492 814V834M540 818V830M588 814V834M636 818V830M684 814V834M732 818V830" stroke-width="4"/>
+  </g>
+
+  <!-- Accent timeline clip -->
+  <rect x="390" y="808" width="210" height="32" rx="16" fill="url(#accent)"/>
+  <circle cx="600" cy="824" r="11" fill="#F4F7FF"/>
 </svg>
