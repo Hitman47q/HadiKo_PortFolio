@@ -70,11 +70,37 @@
     padding: 9px 18px; border-radius: 100px; transition: border-color .25s ease, background .25s ease;
   }
   .nav-cta:hover{ border-color: var(--accent); background: rgba(232,163,61,0.08); }
+  .nav-right{ display:flex; align-items:center; gap:14px; }
+  .lang-toggle{
+    font-size: 0.82rem; font-weight: 500; color: var(--ink); background: none;
+    border: 1px solid var(--line-strong); padding: 7px 14px; border-radius: 100px;
+    cursor: pointer; transition: border-color .25s ease, background .25s ease;
+    font-family: inherit;
+  }
+  .lang-toggle:hover{ border-color: var(--accent); background: rgba(232,163,61,0.08); }
   .nav-toggle{ display:none; }
   @media (max-width: 780px){
     .nav-links{ display:none; }
     .nav-cta{ display:none; }
   }
+
+  /* RTL support */
+  html[dir="rtl"] body{
+    font-family: 'Cairo', 'Sora', ui-sans-serif, system-ui, sans-serif;
+  }
+  html[dir="rtl"] .copy,
+  html[dir="rtl"] .eyebrow,
+  html[dir="rtl"] h1,
+  html[dir="rtl"] h1 span,
+  html[dir="rtl"] .role,
+  html[dir="rtl"] .desc,
+  html[dir="rtl"] .cta{ text-align: right; }
+  html[dir="rtl"] .copy{ transform-origin: right center; }
+  html[dir="rtl"] .cta{ align-self: flex-end; }
+  html[dir="rtl"] .next-section{ left: auto; right: 10.5vw; }
+  html[dir="rtl"] .follow{ left: auto; right: 3.2vw; }
+  html[dir="rtl"] .stat .lbl{ margin-left: 0; margin-right: -1rem; }
+  html[dir="rtl"] .nav-links{ flex-direction: row-reverse; }
 
   .intro-grid{
     display:grid; grid-template-columns: 0.9fr 1.1fr; gap: 70px; align-items: start;
@@ -330,11 +356,12 @@
   .follow { left: 3.2vw; top: 50%; transform: rotate(-90deg); }
   .status { right: 3.5vw; top: 52%; }
   .scroll-label {
-    position: absolute; z-index: 30; bottom: 30px; left: 50%;
+    position: absolute; z-index: 40; bottom: 24px; left: 50%;
     transform: translateX(-50%);
     font-size: 10px; letter-spacing: .35em; color: #8e877e;
     text-align: center;
     animation: scrollLabelPulse 2.2s ease-in-out infinite;
+    pointer-events: none;
   }
   .scroll-line {
     position: relative;
@@ -551,6 +578,10 @@ img, svg, video, canvas {
     right: 12px;
   }
 
+  .scroll-label {
+    display: none;
+  }
+
   .next-section {
     left: 8vw;
     bottom: max(42px, 7dvh);
@@ -710,6 +741,22 @@ img, svg, video, canvas {
 
   .status {
     right: max(12px, env(safe-area-inset-right));
+  }
+}
+
+/* RTL mobile overrides */
+@media (max-width: 800px) {
+  html[dir="rtl"] .copy {
+    left: auto;
+    right: 8vw;
+  }
+  html[dir="rtl"] .next-section {
+    left: auto;
+    right: 8vw;
+  }
+  html[dir="rtl"] .follow {
+    left: auto;
+    right: 12px;
   }
 }
 
