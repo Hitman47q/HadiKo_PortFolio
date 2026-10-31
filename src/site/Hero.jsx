@@ -1,188 +1,206 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-const SHARDS = [
-  { w: 90, h: 160, x: '64%', y: '20%', tx: 90, ty: -120, tz: 260, r: 30 },
-  { w: 120, h: 70, x: '70%', y: '33%', tx: 170, ty: -25, tz: 220, r: -22 },
-  { w: 75, h: 110, x: '58%', y: '46%', tx: -130, ty: 50, tz: 190, r: -40 },
-  { w: 140, h: 80, x: '76%', y: '52%', tx: 180, ty: 120, tz: 240, r: 45 },
-  { w: 60, h: 130, x: '66%', y: '66%', tx: -110, ty: 160, tz: 200, r: 65 },
-  { w: 95, h: 65, x: '82%', y: '25%', tx: 210, ty: -100, tz: 180, r: -55 },
-  { w: 45, h: 90, x: '54%', y: '58%', tx: -170, ty: 110, tz: 160, r: 20 },
-  { w: 80, h: 45, x: '74%', y: '72%', tx: 150, ty: 190, tz: 210, r: -30 },
-]
-
-const PLACEHOLDER = 'data:image/webp;base64,UklGRmABAABXRUJQVlA4WAoAAAAQAAAADwAAFwAAQUxQSLcAAAABgGPb2rHn+WOjtY1OtZPO7O0R2FatXp0xAJsDSCobX573Ft/zvWOIiAkgS1fS9x05n/fQGgZQpbUARqtWF5SRqJX+jzVnrZg35JG1XXT5KVCk0fsNsLrOd5dsR2BmBq6SpF2BFWYEWpEYD35CuwVjSgi4g8Wzn4n6JeDeR6gU1HJDDonTArZJdryQPsOlNEOZGNXSKFjatJmcL6w+gkx2JYaSdvxNlKeYlWJGAYltYPVwq5SRTEQAVlA4IIIAAACwAwCdASoQABgAPu1iqU2ppaOiMAgBMB2JYwCdICXgqBD72WUwMAD9IY/pYpn7WESbAyUeTOFeMXbyslbPJPRGLSKyuJOSB0682oFpRbvomcmsatRDsRP4Y72dUTCH3aQatheeKWADjq4ULH/b4wXCk+bYxUwqf2NUA/yP71mtAAAA'
+// Frame sequences cut from the Seedance videos (see seedance/PROMPTS.md):
+// 97 WebP frames each, landscape for wide screens and portrait for tall ones.
+const SETS = {
+  d: { count: 97, w: 1280, h: 720, focusX: 0.72, poster: '/hero/poster-d.webp' },
+  m: { count: 97, w: 720, h: 1280, focusX: 0.5, poster: '/hero/poster-m.webp' },
+}
+const frameUrl = (set, i) => `/hero/${set}/${String(i + 1).padStart(3, '0')}.webp`
 
 const clamp = (n, a = 0, b = 1) => Math.max(a, Math.min(b, n))
-const ease = t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2)
 const range = (p, a, b) => clamp((p - a) / (b - a))
+const ease = t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2)
+
+const pickSet = () => (window.innerWidth / window.innerHeight < 1 ? 'm' : 'd')
 
 export default function Hero({ t, lang, navRef, available }) {
   const stageRef = useRef(null)
+  const canvasRef = useRef(null)
   const copyRef = useRef(null)
-  const frameRef = useRef(null)
-  const portraitRef = useRef(null)
   const nextRef = useRef(null)
   const progressRef = useRef(null)
-  const firstRef = useRef(null)
-  const lastRef = useRef(null)
-  const shardsRef = useRef(null)
+  const hintRef = useRef(null)
+  const [set, setSet] = useState(pickSet)
+  const [ready, setReady] = useState(false)
   const rtlRef = useRef(lang === 'ar')
   useEffect(() => { rtlRef.current = lang === 'ar' }, [lang])
 
+  // Switch between the landscape and portrait sequence when the screen shape changes.
+  useEffect(() => {
+    const onResize = () => setSet(pickSet())
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
   useEffect(() => {
     const stage = stageRef.current
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
     const nav = navRef.current
-    const els = {
-      copy: copyRef.current, frame: frameRef.current, portrait: portraitRef.current,
-      next: nextRef.current, progress: progressRef.current, first: firstRef.current, last: lastRef.current,
-    }
-    const shards = [...shardsRef.current.querySelectorAll('.shard')]
+    const { count, w: fw, h: fh, focusX } = SETS[set]
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const frames = new Array(count)
+    let cancelled = false, current = 0, needsDraw = true, rafId = 0, running = false
+    setReady(false)
 
-    // Viewport size is cached and only refreshed when the *width* changes, so the
-    // mobile address bar showing/hiding (height-only resize) never makes the animation jump.
-    let vw = window.innerWidth, vh = window.innerHeight, total = 1, mobile = false, k = 1
+    // Load coarse-to-fine (every 8th frame, then 4th, 2nd, all) so scrubbing works
+    // almost immediately and gets smoother as the rest arrive.
+    const order = []
+    for (const step of [8, 4, 2, 1]) {
+      for (let i = 0; i < count; i += step) if (!order.includes(i)) order.push(i)
+    }
+    if (!order.includes(count - 1)) order.splice(1, 0, count - 1)
+    let next = 0
+    const loadOne = () => {
+      if (cancelled || next >= order.length) return
+      const i = order[next++]
+      const img = new Image()
+      img.decoding = 'async'
+      img.onload = () => {
+        if (cancelled) return
+        frames[i] = img
+        needsDraw = true
+        if (i === 0) setReady(true)
+        loadOne()
+      }
+      img.onerror = loadOne
+      img.src = frameUrl(set, i)
+    }
+    if (!reduced) for (let k = 0; k < 4; k++) loadOne()
+
+    // Canvas sizing: cached, and refreshed only when the width changes, so the mobile
+    // address bar showing/hiding (height-only resize) never causes a jump.
+    let vw = 0, cw = 0, ch = 0, total = 1
     const measure = () => {
       vw = window.innerWidth
-      vh = window.innerHeight
-      mobile = vw <= 800
-      // All pixel offsets were tuned for a 1440px screen; scale them to the current one.
-      k = clamp(vw / 1440, 0.32, 1.1)
-      total = Math.max(1, stage.offsetHeight - vh)
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      cw = Math.round(canvas.clientWidth * dpr)
+      ch = Math.round(canvas.clientHeight * dpr)
+      canvas.width = cw
+      canvas.height = ch
+      total = Math.max(1, stage.offsetHeight - window.innerHeight)
+      needsDraw = true
     }
-    measure()
     const onResize = () => { if (window.innerWidth !== vw) measure() }
-    window.addEventListener('resize', onResize)
-    window.addEventListener('orientationchange', measure)
+
+    const nearest = i => {
+      for (let d = 0; d < count; d++) {
+        if (frames[i - d]) return frames[i - d]
+        if (frames[i + d]) return frames[i + d]
+      }
+      return null
+    }
+    // "cover" fit, keeping the subject (focusX) in view when the sides get cropped.
+    const drawImage = (img, alpha) => {
+      const scale = Math.max(cw / fw, ch / fh)
+      const dw = fw * scale, dh = fh * scale
+      const dx = (cw - dw) * focusX, dy = (ch - dh) / 2
+      ctx.globalAlpha = alpha
+      ctx.drawImage(img, dx, dy, dw, dh)
+    }
 
     const progressOf = () => clamp(-stage.getBoundingClientRect().top / total)
-    const onScroll = () => {
-      const scrolled = reduced ? window.scrollY > 40 : progressOf() > 0.74
-      nav.classList.toggle('scrolled', scrolled)
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    onScroll()
 
+    let lastTime = performance.now()
+    function draw(p) {
+      const now = performance.now()
+      const dt = Math.min(250, now - lastTime)
+      lastTime = now
+      const target = p * (count - 1)
+      // Ease toward the scroll position for a smooth, slightly weighted feel. Time-based,
+      // so it catches up at the same speed on slow devices that render fewer frames.
+      current += (target - current) * (1 - Math.exp(-dt / 70))
+      if (Math.abs(target - current) < 0.01) current = target
+      const i = Math.floor(current)
+      const frac = current - i
+      const a = frames[i] || nearest(i)
+      if (a) {
+        ctx.globalCompositeOperation = 'source-over'
+        drawImage(a, 1)
+        // Cross-fade into the next frame for in-between scroll positions.
+        const b = frac > 0.02 && frames[i + 1]
+        if (b && a === frames[i]) drawImage(b, frac)
+        ctx.globalAlpha = 1
+      }
+
+      const dir = rtlRef.current ? -1 : 1
+      const out = ease(range(p, 0.06, 0.3))
+      copyRef.current.style.opacity = 1 - out
+      copyRef.current.style.transform = `translate3d(${-dir * out * 40}px, ${-out * 50}px, 0)`
+      hintRef.current.style.opacity = 1 - range(p, 0, 0.08)
+      progressRef.current.style.transform = `scaleX(${p})`
+      const nextIn = range(p, 0.72, 0.9)
+      nextRef.current.style.opacity = nextIn
+      nextRef.current.style.transform = `translateY(${24 * (1 - nextIn)}px)`
+      nav.classList.toggle('scrolled', p > 0.2)
+      return current !== target
+    }
+
+    // Redraw only after a scroll, resize or newly loaded frame, and while easing toward the target.
+    function loop() {
+      if (needsDraw) needsDraw = draw(progressOf())
+      else lastTime = performance.now()
+      rafId = requestAnimationFrame(loop)
+    }
+
+    const onScroll = () => {
+      needsDraw = true
+      if (reduced) nav.classList.toggle('scrolled', window.scrollY > 40)
+    }
+
+    measure()
+    window.addEventListener('resize', onResize)
+    window.addEventListener('orientationchange', measure)
+    window.addEventListener('scroll', onScroll, { passive: true })
     if (reduced) {
+      onScroll()
       return () => {
-        window.removeEventListener('scroll', onScroll)
+        cancelled = true
         window.removeEventListener('resize', onResize)
         window.removeEventListener('orientationchange', measure)
+        window.removeEventListener('scroll', onScroll)
       }
-    }
-
-    let mouseX = 0, mouseY = 0, smoothX = 0, smoothY = 0, rafId = 0, running = false, lastP = -1
-    const onPointer = e => {
-      if (e.pointerType !== 'mouse') return
-      mouseX = (e.clientX / vw - 0.5) * 2
-      mouseY = (e.clientY / vh - 0.5) * 2
-    }
-    window.addEventListener('pointermove', onPointer, { passive: true })
-
-    function render() {
-      smoothX += (mouseX * 3.5 - smoothX) * 0.06
-      smoothY += (mouseY * 2.2 - smoothY) * 0.06
-      const p = progressOf()
-      const moving = Math.abs(mouseX * 3.5 - smoothX) > 0.01 || Math.abs(mouseY * 2.2 - smoothY) > 0.01
-      if (p !== lastP || moving) {
-        lastP = p
-        draw(p)
-      }
-      rafId = requestAnimationFrame(render)
-    }
-
-    function draw(p) {
-      const dir = rtlRef.current ? -1 : 1
-      const { copy, frame, portrait, next, progress, first, last } = els
-      progress.style.transform = `scaleX(${p})`
-
-      const intro = ease(range(p, 0, 0.18))
-      const breakIn = ease(range(p, 0.14, 0.34))
-      const burst = ease(range(p, 0.28, 0.55))
-      const exit = ease(range(p, 0.54, 0.78))
-      const finish = ease(range(p, 0.76, 1))
-
-      if (mobile) {
-        // Phone: keep everything inside the screen. Text lifts and fades,
-        // the portrait rises and grows a little, the frame tilts away.
-        copy.style.transform = `translate3d(0, ${-(breakIn * 40 + exit * 60)}px, 0) scale(${1 - exit * 0.08})`
-        copy.style.opacity = 1 - range(p, 0.3, 0.62)
-        first.style.transform = `translateX(${-dir * burst * 18}px)`
-        last.style.transform = `translateX(${dir * burst * 22}px)`
-        const scale = 1 + burst * 0.12 + exit * 0.08
-        portrait.style.transform =
-          `translate3d(0, ${-burst * vh * 0.1 - exit * vh * 0.06}px, 0) scale(${scale})`
-        portrait.style.opacity = 1 - finish * 0.9
-        frame.style.transform = `rotateY(${dir * (burst * 10 + exit * 30)}deg) rotateX(${exit * 10}deg) scale(${1 + exit * 0.1})`
-        frame.style.opacity = 1 - burst * 0.95
-      } else {
-        const textScale = 1 - burst * 0.12 - exit * 0.18
-        copy.style.transform =
-          `translate3d(${-dir * breakIn * 160 * k}px, ${-exit * 80 * k}px, ${exit * 180 * k}px) scale(${textScale})`
-        copy.style.opacity = 1 - exit * 0.95
-        first.style.transform = `translateX(${-dir * burst * 120 * k}px)`
-        last.style.transform = `translateX(${dir * burst * 130 * k}px)`
-
-        const z = (-60 + burst * 480 - exit * 120) * k
-        const x = (-burst * 40 + exit * 120) * k
-        const y = (intro * 10 - exit * 190) * k
-        const rotY = -4 + burst * 7 + exit * 16
-        const rotX = burst * 2 - exit * 8
-        const scale = 0.83 + burst * 0.22 + exit * 0.25
-        portrait.style.transform =
-          `translate3d(${x + smoothX}px, ${y + smoothY}px, ${z}px) rotateY(${rotY}deg) rotateX(${rotX}deg) scale(${scale})`
-        portrait.style.opacity = 1 - finish * 0.88
-
-        frame.style.transform =
-          `translate3d(${(-burst * 40 + exit * 210) * k}px, ${(burst * 15 - exit * 60) * k}px, ${-burst * 20 * k}px) rotateY(${burst * 8 + exit * 48}deg) rotateX(${burst * 2 + exit * 18}deg) scale(${1 + exit * 0.18})`
-        frame.style.opacity = 1 - burst * 0.92
-      }
-
-      const shardK = mobile ? k * 1.4 : k
-      shards.forEach((s, i) => {
-        const local = ease(clamp((burst - i * 0.018) / 0.7))
-        const d = SHARDS[i]
-        s.style.transform =
-          `translate3d(${d.tx * shardK * local}px, ${d.ty * shardK * local}px, ${d.tz * shardK * local}px) rotate(${d.r * local}deg)`
-        s.style.opacity = (0.85 * local * (1 - finish)).toFixed(3)
-      })
-
-      const nextIn = range(p, 0.64, 0.82)
-      next.style.opacity = nextIn
-      next.style.transform = `translateY(${30 * (1 - nextIn)}px)`
     }
 
     // Only animate while the hero is on screen.
     const io = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && !running) { running = true; rafId = requestAnimationFrame(render) }
+      if (entry.isIntersecting && !running) { running = true; current = progressOf() * (count - 1); rafId = requestAnimationFrame(loop) }
       if (!entry.isIntersecting && running) { running = false; cancelAnimationFrame(rafId) }
     })
     io.observe(stage)
 
     return () => {
+      cancelled = true
       io.disconnect()
       cancelAnimationFrame(rafId)
-      window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onResize)
       window.removeEventListener('orientationchange', measure)
-      window.removeEventListener('pointermove', onPointer)
+      window.removeEventListener('scroll', onScroll)
     }
-  }, [navRef])
+  }, [set, navRef])
 
   return (
     <>
       <div className="progress" ref={progressRef} />
       <section className="scroll-stage" id="top" ref={stageRef}>
         <div className="sticky">
-          <div className="grid" />
+          <img
+            className={`hero-poster ${ready ? 'is-hidden' : ''}`}
+            src={SETS[set].poster}
+            alt=""
+            fetchPriority="high"
+            style={{ objectPosition: `${SETS[set].focusX * 100}% 50%` }}
+          />
+          <canvas className="hero-canvas" ref={canvasRef} aria-label="Hadi Korish standing in front of a gold-framed glass screen that shatters as you scroll" role="img" />
+          <div className="hero-shade" />
           <div className="noise" />
 
           <div className="copy" ref={copyRef}>
             <div className="eyebrow">{t.eyebrow}</div>
             <h1>
-              <span ref={firstRef}>HADI</span>
-              <span className="last" ref={lastRef}>KORISH</span>
+              <span>HADI</span>
+              <span className="last">KORISH</span>
             </h1>
             <div className="role">{t.role1}<br />{t.role2}</div>
             <p className="desc">{t.desc}</p>
@@ -196,34 +214,8 @@ export default function Hero({ t, lang, navRef, available }) {
             </div>
           </div>
 
-          <div className="screen-frame" ref={frameRef}><div className="glass" /></div>
-
-          <div className="portrait-wrap" ref={portraitRef}>
-            <img className="portrait portrait-ph" src={PLACEHOLDER} alt="" aria-hidden="true" />
-            <picture>
-              <source type="image/avif" srcSet="/me-640.avif 640w, /me.avif 1024w" sizes="(max-width: 800px) 70vw, 43vw" />
-              <source type="image/webp" srcSet="/me-640.webp 640w, /me.webp 1024w" sizes="(max-width: 800px) 70vw, 43vw" />
-              <img
-                className="portrait"
-                src="/me.webp"
-                width="1024"
-                height="1536"
-                alt="Portrait of Hadi Korish"
-                fetchPriority="high"
-                ref={img => { if (img?.complete) img.classList.add('is-loaded') }}
-                onLoad={e => e.currentTarget.classList.add('is-loaded')}
-              />
-            </picture>
-          </div>
-
-          <div className="shards" ref={shardsRef} aria-hidden="true">
-            {SHARDS.map((s, i) => (
-              <i key={i} className="shard" style={{ width: s.w, height: s.h, left: s.x, top: s.y }} />
-            ))}
-          </div>
-
           <div className="micro follow" aria-hidden="true">{t.follow}</div>
-          <div className="scroll-label" aria-hidden="true">{t.scrollLabel}<div className="scroll-line" /></div>
+          <div className="scroll-label" ref={hintRef} aria-hidden="true">{t.scrollLabel}<div className="scroll-line" /></div>
           <div className="next-section" ref={nextRef} aria-hidden="true">{t.nextSection}</div>
         </div>
       </section>
