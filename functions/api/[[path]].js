@@ -1,5 +1,5 @@
 import { checkPassword, clearSessionCookie, createSessionCookie, isAuthed } from '../../server/auth.js'
-import { notifyChannels, notifyNewMessage } from '../../server/notify.js'
+import { loadNotifyResult, notifyChannels, notifyNewMessage, saveNotifyResult } from '../../server/notify.js'
 
 const PROJECT_TYPES = ['web_app', 'video_production_reel', 'mobile_flutter']
 const PUBLIC_SETTINGS = ['available', 'cv_url']
@@ -83,7 +83,11 @@ async function sendMessage(request, env, waitUntil) {
     "INSERT INTO messages (name, email, message, ip, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
   ).bind(name, email, message, ip).run()
   // Notify in the background so the visitor isn't kept waiting; the message is already saved.
-  waitUntil(notifyNewMessage(env, { name, email, message }, new URL(request.url).origin))
+  waitUntil(
+    notifyNewMessage(env, { name, email, message }, new URL(request.url).origin)
+      .then(result => saveNotifyResult(env, result))
+      .catch(e => console.error('Saving notification result failed:', e)),
+  )
   return json({ status: 'sent' }, 201)
 }
 
@@ -292,7 +296,7 @@ export async function onRequest({ request, env, params, waitUntil }) {
       if (sub === 'testimonials') return await testimonialsRoute(request, env, id)
       if (sub === 'messages') return await messagesRoute(request, env, id)
       if (sub === 'settings') return await settingsRoute(request, env)
-      if (sub === 'notify-status') return json(notifyChannels(env))
+      if (sub === 'notify-status') return json({ ...notifyChannels(env), last: await loadNotifyResult(env) })
       if (sub === 'notify-test' && method === 'POST') return await testNotification(request, env)
       if (sub === 'upload' && method === 'POST') return await upload(request, env)
     }

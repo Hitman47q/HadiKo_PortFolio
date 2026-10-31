@@ -465,6 +465,13 @@ function Notifications({ toast }) {
           {row('Email', on.email, 'Off — set RESEND_API_KEY and NOTIFY_EMAIL')}
         </ul>
       )}
+      {on?.last && (
+        <div className={`a-notice ${on.last.errors?.length ? 'err' : ''}`}>
+          <strong>Last real message ({new Date(on.last.at).toLocaleString()}):</strong>{' '}
+          {on.last.sent?.length ? `sent via ${on.last.sent.join(' and ')}.` : 'nothing was sent.'}
+          {on.last.errors?.map(e => <div key={e}>⚠ {e}</div>)}
+        </div>
+      )}
       <div className="a-actions">
         <button className="a-btn" onClick={test} disabled={busy || !on || (!on.telegram && !on.email)}>
           {busy ? 'Sending…' : 'Send test notification'}

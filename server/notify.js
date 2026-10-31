@@ -61,7 +61,32 @@ async function email(env, msg, adminUrl) {
       text: `${msg.name} <${msg.email}>\n\n${msg.message}\n\nOpen in /admin: ${adminUrl}`,
     }),
   })
-  if (!res.ok) throw new Error(`Email: ${(await res.json().catch(() => ({}))).message || res.status}`)
+  if (!res.ok) throw new Error(resendError(res.status, (await res.json().catch(() => ({}))).message))
+}
+
+function resendError(status, message = '') {
+  if (/only send testing emails/i.test(message)) {
+    return `Email: Resend only delivers to your own account email without a domain. Set NOTIFY_EMAIL to the address you signed up to Resend with. (${message})`
+  }
+  if (status === 401 || /api key/i.test(message)) {
+    return 'Email: the Resend API key is wrong or was deleted. Create a new one (Sending access) and update RESEND_API_KEY.'
+  }
+  if (status === 422) return `Email: Resend rejected the address. Check NOTIFY_EMAIL. (${message})`
+  if (status === 429) return 'Email: Resend rate limit reached (free plan: 100 emails a day). Try again later.'
+  return `Email: ${message || status}`
+}
+
+// Remembers the outcome of the latest real notification so /admin can show why one didn't arrive.
+export async function saveNotifyResult(env, result) {
+  const value = JSON.stringify({ at: new Date().toISOString(), ...result })
+  await env.DB.prepare(
+    "INSERT INTO settings (key, value) VALUES ('notify_last', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+  ).bind(value).run()
+}
+
+export async function loadNotifyResult(env) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'notify_last'").first()
+  try { return row ? JSON.parse(row.value) : null } catch { return null }
 }
 
 // Sends on every configured channel; returns { sent: [...], errors: [...] }.
