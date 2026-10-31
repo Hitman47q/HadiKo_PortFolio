@@ -26,3 +26,6 @@ dist-ssr
 # Cloudflare local state and secrets
 .wrangler
 .dev.vars
+
+# Seedance source frames and raw videos (not part of the site)
+seedance/

@@ -28,6 +28,21 @@ The `functions/` folder only runs when Pages builds the site **from GitHub**
 3. Push to GitHub (or **Retry deployment**) so the binding and secrets apply, then open `/admin`.
 4. Once `/admin` works, delete the old `hadi-portfolio-api` Worker.
 
+## Message notifications (optional, free)
+
+Add these as **Secrets** in the Pages project (same place as `ADMIN_PASSWORD`), redeploy, then use
+**/admin → Settings → Send test notification**. You can set up one or both.
+
+**Telegram (instant push on your phone)**
+1. In Telegram, message **@BotFather** → `/newbot` → follow the steps. Copy the token it gives you → secret `TELEGRAM_BOT_TOKEN`.
+2. Open your new bot and press **Start** (send it any message).
+3. Visit `https://api.telegram.org/bot<TOKEN>/getUpdates` in your browser and copy `"chat":{"id": …}` → secret `TELEGRAM_CHAT_ID`.
+
+**Email (via resend.com, free tier)**
+1. Sign up at resend.com → **API Keys → Create** → secret `RESEND_API_KEY`.
+2. Secret `NOTIFY_EMAIL` = the **same email you signed up to Resend with** (without your own domain, Resend only delivers to that address).
+   Hitting **Reply** answers the visitor directly.
+
 ## Local development
 
 `npm run dev` serves the site on http://localhost:5173 and borrows the **live** site's API, so projects,

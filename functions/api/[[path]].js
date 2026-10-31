@@ -1,4 +1,5 @@
 import { checkPassword, clearSessionCookie, createSessionCookie, isAuthed } from '../../server/auth.js'
+import { notifyChannels, notifyNewMessage } from '../../server/notify.js'
 
 const PROJECT_TYPES = ['web_app', 'video_production_reel', 'mobile_flutter']
 const PUBLIC_SETTINGS = ['available', 'cv_url']
@@ -68,7 +69,7 @@ async function track(request, env) {
   return json({ status: 'tracked' })
 }
 
-async function sendMessage(request, env) {
+async function sendMessage(request, env, waitUntil) {
   const b = await readJson(request)
   if (b.website) return json({ status: 'sent' }) // honeypot: pretend success for bots
   const name = str(b.name, 120), email = str(b.email, 200), message = str(b.message, 5000)
@@ -81,7 +82,23 @@ async function sendMessage(request, env) {
   await env.DB.prepare(
     "INSERT INTO messages (name, email, message, ip, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
   ).bind(name, email, message, ip).run()
+  // Notify in the background so the visitor isn't kept waiting; the message is already saved.
+  waitUntil(notifyNewMessage(env, { name, email, message }, new URL(request.url).origin))
   return json({ status: 'sent' }, 201)
+}
+
+async function testNotification(request, env) {
+  const on = notifyChannels(env)
+  if (!on.telegram && !on.email) {
+    return fail('No notification channel is set up yet. Add the Telegram or email secrets in Cloudflare, then redeploy.')
+  }
+  const result = await notifyNewMessage(env, {
+    name: 'Portfolio test',
+    email: 'test@example.com',
+    message: 'This is a test notification from /admin. If you can read this, notifications work!',
+  }, new URL(request.url).origin)
+  if (result.errors.length) return fail(result.errors.join('; '), 502)
+  return json(result)
 }
 
 /* ---------- admin: auth ---------- */
@@ -252,7 +269,7 @@ async function upload(request, env) {
 
 /* ---------- router ---------- */
 
-export async function onRequest({ request, env, params }) {
+export async function onRequest({ request, env, params, waitUntil }) {
   const parts = params.path || []
   const [section, sub, id] = parts
   const { method } = request
@@ -262,7 +279,7 @@ export async function onRequest({ request, env, params }) {
   try {
     if (section === 'public' && method === 'GET') return await getPublic(env)
     if (section === 'track' && method === 'POST') return await track(request, env)
-    if (section === 'messages' && method === 'POST' && !sub) return await sendMessage(request, env)
+    if (section === 'messages' && method === 'POST' && !sub) return await sendMessage(request, env, waitUntil)
 
     if (section === 'admin') {
       if (sub === 'login' && method === 'POST') return await login(request, env)
@@ -275,6 +292,8 @@ export async function onRequest({ request, env, params }) {
       if (sub === 'testimonials') return await testimonialsRoute(request, env, id)
       if (sub === 'messages') return await messagesRoute(request, env, id)
       if (sub === 'settings') return await settingsRoute(request, env)
+      if (sub === 'notify-status') return json(notifyChannels(env))
+      if (sub === 'notify-test' && method === 'POST') return await testNotification(request, env)
       if (sub === 'upload' && method === 'POST') return await upload(request, env)
     }
     return fail('Not found', 404)

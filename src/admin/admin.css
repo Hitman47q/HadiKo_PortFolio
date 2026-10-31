@@ -87,6 +87,7 @@
 .a-list li:last-child { border-bottom: 0; }
 .a-list b { font-weight: 500; color: var(--a-muted); white-space: nowrap; }
 .a-list.small { font-size: .85rem; }
+.a-list b.a-on { color: #4ade80; }
 .a-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* lists */

@@ -437,6 +437,43 @@ function Messages({ toast, onChange }) {
 
 /* ---------- settings ---------- */
 
+function Notifications({ toast }) {
+  const [on, setOn] = useState(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { api('/admin/notify-status').then(setOn).catch(() => setOn(false)) }, [])
+  async function test() {
+    setBusy(true)
+    try {
+      const { sent } = await api('/admin/notify-test', { method: 'POST' })
+      toast(`Test sent via ${sent.join(' and ')}`)
+    } catch (err) {
+      toast(err.message, 'err')
+    } finally {
+      setBusy(false)
+    }
+  }
+  const row = (label, active, how) => (
+    <li><span>{label}</span><b className={active ? 'a-on' : ''}>{active ? 'On' : how}</b></li>
+  )
+  return (
+    <div className="a-card a-form">
+      <h3>Message notifications</h3>
+      <p className="a-muted">Get told the moment someone uses the contact form. Channels switch on when their secrets are set in Cloudflare (see README).</p>
+      {on && (
+        <ul className="a-list">
+          {row('Telegram', on.telegram, 'Off — set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID')}
+          {row('Email', on.email, 'Off — set RESEND_API_KEY and NOTIFY_EMAIL')}
+        </ul>
+      )}
+      <div className="a-actions">
+        <button className="a-btn" onClick={test} disabled={busy || !on || (!on.telegram && !on.email)}>
+          {busy ? 'Sending…' : 'Send test notification'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function Settings({ toast }) {
   const [s, setS] = useState(null)
   useEffect(() => { api('/admin/settings').then(setS).catch(err => toast(err.message, 'err')) }, [toast])
@@ -520,7 +557,7 @@ export default function Admin() {
         {tab === 'projects' && <Projects toast={toast} />}
         {tab === 'testimonials' && <Testimonials toast={toast} />}
         {tab === 'messages' && <Messages toast={toast} onChange={refreshUnread} />}
-        {tab === 'settings' && <Settings toast={toast} />}
+        {tab === 'settings' && <><Settings toast={toast} /><Notifications toast={toast} /></>}
       </main>
       {toastNode}
     </div>
